@@ -4,6 +4,7 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { TaskStatus } from './task-status.enum';
 import { Injectable } from '@nestjs/common';
 import { GetTasksFilterDto } from './dto/get-tasks-filter.dto';
+import { User } from 'src/auth/user.entity';
 
 @Injectable()
 export class TasksRepository extends Repository<Task> {
@@ -11,38 +12,44 @@ export class TasksRepository extends Repository<Task> {
     super(Task, dataSource.createEntityManager());
   }
 
-  async deleteTask(id: string): Promise<number> {
-    const res = await this.delete(id);
+  async deleteTask(id: string, user: User): Promise<number> {
+    const res = await this.delete({ id, user });
     return res.affected;
   }
 
-  async createTask(createTaskDto: CreateTaskDto): Promise<Task> {
+  async createTask(createTaskDto: CreateTaskDto, user: User): Promise<Task> {
     const { title, description } = createTaskDto;
     const task = this.create({
       title,
       description,
       status: TaskStatus.OPEN,
+      user,
     });
     return await this.save(task);
   }
 
-  async getTaskByID(id: string): Promise<Task> {
-    return await this.findOneBy({ id: id });
+  async getTaskByID(id: string, user: User): Promise<Task> {
+    return await this.findOneBy({ id, user });
   }
 
-  async updateTaskByID(id: string, status: TaskStatus): Promise<Task> {
-    let task = await this.getTaskByID(id);
+  async updateTaskByID(
+    id: string,
+    status: TaskStatus,
+    user: User,
+  ): Promise<Task> {
+    let task = await this.getTaskByID(id, user);
     task.status = status;
     task = await this.save(task);
     return task;
   }
 
-  async getTasks(filterDto: GetTasksFilterDto): Promise<Task[]> {
+  async getTasks(filterDto: GetTasksFilterDto, user: User): Promise<Task[]> {
     const query = this.createQueryBuilder('task');
     const { search, status } = filterDto;
+    query.where({ user });
     if (search) {
       query.andWhere(
-        'LOWER(task.title) like :search OR LOWER(task.description) like :search',
+        '(LOWER(task.title) like :search OR LOWER(task.description) like :search)',
         { search: `%${search.toLowerCase()}%` },
       );
     }
